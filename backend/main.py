@@ -1,5 +1,6 @@
 import os
 import re
+import base64
 from datetime import date, datetime
 
 from dotenv import load_dotenv
@@ -193,7 +194,7 @@ def calculate_expiry_status(expiry_text: str):
     expiry_year = None
 
     # --------------------------------------------------------
-    # Example:
+    # Examples:
     # EXP.JUL.24
     # JUL.24
     # JUL 24
@@ -222,7 +223,7 @@ def calculate_expiry_status(expiry_text: str):
             expiry_year = int(year_text)
 
     # --------------------------------------------------------
-    # Example:
+    # Examples:
     # 07/2024
     # 07-24
     # 07.2024
@@ -231,7 +232,7 @@ def calculate_expiry_status(expiry_text: str):
     if not match:
         numeric_match = re.search(
             r"\b(0?[1-9]|1[0-2])[\s./-](\d{2,4})\b",
-            normalized
+            normalized,
         )
 
         if numeric_match:
@@ -419,7 +420,6 @@ HOW TO TAKE:
 Return only the requested structured fields.
 """
 
-
     # --------------------------------------------------------
     # 5. Prepare image
     # --------------------------------------------------------
@@ -553,3 +553,86 @@ Return only the requested structured fields.
         "message": "All Gemini models are temporarily unavailable.",
         "error": last_error,
     }
+
+
+# ============================================================
+# GEMINI TEXT-TO-SPEECH
+# ============================================================
+
+@app.post("/speak")
+async def speak(
+    text: str = Form(...),
+    language: str = Form("english"),
+):
+    try:
+
+        print(f"TTS request received | Language: {language}")
+
+        language_name = (
+            "Hindi"
+            if language.lower() == "hindi"
+            else "English"
+        )
+
+        prompt = f"""
+Synthesize speech only.
+
+Speak clearly, slowly, naturally, and warmly for an elderly listener.
+
+Language: {language_name}
+
+Read the following medicine information aloud exactly as provided.
+Do not add medical advice.
+Do not add extra information.
+
+BEGIN SPOKEN TEXT
+{text}
+END SPOKEN TEXT
+"""
+
+        # ----------------------------------------------------
+        # Gemini TTS
+        # ----------------------------------------------------
+
+        interaction = client.interactions.create(
+            model="gemini-3.1-flash-tts-preview",
+            input=prompt,
+            response_format={"type": "audio"},
+            generation_config={
+                "speech_config": [
+                    {
+                        "voice": "Kore"
+                    }
+                ]
+            },
+        )
+
+        # ----------------------------------------------------
+        # Validate audio response
+        # ----------------------------------------------------
+
+        if not interaction.output_audio:
+            raise Exception("Gemini did not return audio")
+
+        audio_base64 = interaction.output_audio.data
+
+        print("Gemini TTS audio generated successfully")
+
+        # ----------------------------------------------------
+        # Return audio
+        # ----------------------------------------------------
+
+        return {
+            "status": "success",
+            "audio": audio_base64,
+            "mime_type": "audio/wav",
+        }
+
+    except Exception as error:
+
+        print(f"TTS error: {error}")
+
+        return {
+            "status": "error",
+            "message": str(error),
+        }
