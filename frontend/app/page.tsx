@@ -117,6 +117,7 @@ export default function Home() {
   } | null>(null);
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSpeaking, setIsSpeaking] = useState(false);
 
   const t = translations[selectedLanguage];
 
@@ -179,6 +180,127 @@ export default function Home() {
       );
     } finally {
       setIsAnalyzing(false);
+    }
+  };
+
+  const base64ToWavBlob = (base64: string) => {
+    const binaryString = window.atob(base64);
+    const pcmData = new Uint8Array(binaryString.length);
+
+    for (let i = 0; i < binaryString.length; i++) {
+      pcmData[i] = binaryString.charCodeAt(i);
+    }
+
+    const sampleRate = 24000;
+    const channels = 1;
+    const bitsPerSample = 16;
+    const blockAlign = channels * (bitsPerSample / 8);
+    const byteRate = sampleRate * blockAlign;
+
+    const wavBuffer = new ArrayBuffer(44 + pcmData.length);
+    const view = new DataView(wavBuffer);
+
+    const writeString = (offset: number, value: string) => {
+      for (let i = 0; i < value.length; i++) {
+        view.setUint8(offset + i, value.charCodeAt(i));
+      }
+    };
+
+    writeString(0, "RIFF");
+    view.setUint32(4, 36 + pcmData.length, true);
+    writeString(8, "WAVE");
+    writeString(12, "fmt ");
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, channels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, byteRate, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, bitsPerSample, true);
+    writeString(36, "data");
+    view.setUint32(40, pcmData.length, true);
+
+    new Uint8Array(wavBuffer, 44).set(pcmData);
+
+    return new Blob([wavBuffer], { type: "audio/wav" });
+  };
+
+  const speakMedicine = async () => {
+    if (!result || isSpeaking) return;
+
+    setIsSpeaking(true);
+    setErrorMessage(null);
+
+    try {
+      const medicine = result.medicine;
+
+      const spokenText =
+        selectedLanguage === "hindi"
+          ? `दवा का नाम ${medicine.medicine} है।
+सक्रिय घटक ${medicine.active_ingredient} है।
+शक्ति ${medicine.strength} है।
+समाप्ति तिथि ${medicine.expiry_date} है।
+${result.expiry_validation.message}
+इस दवा का उपयोग: ${medicine.purpose}
+कैसे लें: ${medicine.how_to_take}
+सावधानियां: ${medicine.precautions}`
+          : `The medicine name is ${medicine.medicine}.
+The active ingredient is ${medicine.active_ingredient}.
+The strength is ${medicine.strength}.
+The expiry date is ${medicine.expiry_date}.
+${result.expiry_validation.message}
+This medicine is commonly used for: ${medicine.purpose}
+How to take: ${medicine.how_to_take}
+Precautions: ${medicine.precautions}`;
+
+      const formData = new FormData();
+      formData.append("text", spokenText);
+      formData.append("language", selectedLanguage);
+
+      console.log("Sending medicine information to Gemini TTS...");
+
+      const response = await fetch("http://localhost:8000/speak", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      console.log("TTS response:", data);
+
+      if (!response.ok || data.status === "error") {
+        throw new Error(data.message || "Failed to generate speech");
+      }
+
+      const audioBlob = base64ToWavBlob(data.audio);
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
+
+      audio.onended = () => {
+        URL.revokeObjectURL(audioUrl);
+        setIsSpeaking(false);
+      };
+
+      audio.onerror = () => {
+        URL.revokeObjectURL(audioUrl);
+        setIsSpeaking(false);
+        setErrorMessage(
+          selectedLanguage === "english"
+            ? "Unable to play the medicine audio."
+            : "दवा की आवाज़ चलाने में समस्या हुई।",
+        );
+      };
+
+      await audio.play();
+    } catch (error) {
+      console.error("TTS error:", error);
+
+      setIsSpeaking(false);
+      setErrorMessage(
+        selectedLanguage === "english"
+          ? "Unable to generate medicine voice. Please try again."
+          : "दवा की आवाज़ तैयार नहीं हो सकी। कृपया फिर से प्रयास करें।",
+      );
     }
   };
 
@@ -505,6 +627,21 @@ export default function Home() {
                     </div>
                   </div>
                 </div>
+
+                {/* Listen */}
+                <button
+                  onClick={speakMedicine}
+                  disabled={isSpeaking}
+                  className="w-full rounded-2xl bg-emerald-600 px-6 py-4 text-lg font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isSpeaking
+                    ? selectedLanguage === "english"
+                      ? "🔊 Speaking..."
+                      : "🔊 आवाज़ चल रही है..."
+                    : selectedLanguage === "english"
+                      ? "🔊 Listen to Medicine Information"
+                      : "🔊 दवा की जानकारी सुनें"}
+                </button>
 
                 {/* Precautions */}
                 <div className="rounded-2xl border bg-white p-5 shadow-sm">
