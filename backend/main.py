@@ -1,10 +1,13 @@
 import os
+import re
+from datetime import date, datetime
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from google import genai
 from google.genai import types
+from pydantic import BaseModel, Field
 
 
 # ============================================================
@@ -29,10 +32,7 @@ if not gemini_api_key:
 # ============================================================
 
 client = genai.Client(
-    api_key=gemini_api_key,
-    http_options=types.HttpOptions(
-        timeout=60000
-    ),
+    api_key=gemini_api_key
 )
 
 
@@ -41,11 +41,45 @@ client = genai.Client(
 # ============================================================
 
 GEMINI_MODELS = [
-    "gemini-3.7-flash",
-    "gemini-3.6-flash",
+    "gemini-3.5-flash-lite",
     "gemini-3.5-flash",
-    "gemini-2.5-flash",
+    "gemini-3.6-flash",
+    "gemini-3.7-flash",
 ]
+
+
+# ============================================================
+# STRUCTURED GEMINI RESPONSE
+# ============================================================
+
+class MedicineAnalysis(BaseModel):
+    medicine: str = Field(
+        description="Medicine or brand name visible on the package."
+    )
+
+    active_ingredient: str = Field(
+        description="Active salt or active ingredient visible or identified with high confidence."
+    )
+
+    strength: str = Field(
+        description="Medicine strength such as 500 mg. If not visible, return Not visible."
+    )
+
+    expiry_date: str = Field(
+        description="Expiry date exactly as read from the medicine package. If not visible, return Not visible."
+    )
+
+    purpose: str = Field(
+        description="Simple general explanation of what the medicine is commonly used for."
+    )
+
+    how_to_take: str = Field(
+        description="Safe instructions based only on visible package information. Do not invent dosage or frequency."
+    )
+
+    precautions: str = Field(
+        description="Important precautions based on visible information or high-confidence general medicine information."
+    )
 
 
 # ============================================================
@@ -99,6 +133,187 @@ def health():
 
 
 # ============================================================
+# EXPIRY DATE VALIDATION
+# ============================================================
+
+def calculate_expiry_status(expiry_text: str):
+    """
+    Calculate expiry status using Python.
+
+    Gemini only reads the expiry date.
+    Python decides whether the medicine is expired.
+    """
+
+    if not expiry_text:
+        return {
+            "status": "UNKNOWN",
+            "message": "Expiry date could not be determined.",
+        }
+
+    normalized = expiry_text.upper().strip()
+
+    if "NOT VISIBLE" in normalized:
+        return {
+            "status": "UNKNOWN",
+            "message": "Expiry date is not visible.",
+        }
+
+    # --------------------------------------------------------
+    # Supported month names
+    # --------------------------------------------------------
+
+    months = {
+        "JAN": 1,
+        "JANUARY": 1,
+        "FEB": 2,
+        "FEBRUARY": 2,
+        "MAR": 3,
+        "MARCH": 3,
+        "APR": 4,
+        "APRIL": 4,
+        "MAY": 5,
+        "JUN": 6,
+        "JUNE": 6,
+        "JUL": 7,
+        "JULY": 7,
+        "AUG": 8,
+        "AUGUST": 8,
+        "SEP": 9,
+        "SEPT": 9,
+        "SEPTEMBER": 9,
+        "OCT": 10,
+        "OCTOBER": 10,
+        "NOV": 11,
+        "NOVEMBER": 11,
+        "DEC": 12,
+        "DECEMBER": 12,
+    }
+
+    expiry_month = None
+    expiry_year = None
+
+    # --------------------------------------------------------
+    # Example:
+    # EXP.JUL.24
+    # JUL.24
+    # JUL 24
+    # JULY 2024
+    # --------------------------------------------------------
+
+    month_pattern = (
+        r"(JAN(?:UARY)?|FEB(?:RUARY)?|MAR(?:CH)?|APR(?:IL)?|"
+        r"MAY|JUN(?:E)?|JUL(?:Y)?|AUG(?:UST)?|SEP(?:TEMBER)?|"
+        r"OCT(?:OBER)?|NOV(?:EMBER)?|DEC(?:EMBER)?)"
+        r"[\s./-]*"
+        r"(\d{2,4})"
+    )
+
+    match = re.search(month_pattern, normalized)
+
+    if match:
+        month_text = match.group(1)
+        year_text = match.group(2)
+
+        expiry_month = months.get(month_text)
+
+        if len(year_text) == 2:
+            expiry_year = 2000 + int(year_text)
+        else:
+            expiry_year = int(year_text)
+
+    # --------------------------------------------------------
+    # Example:
+    # 07/2024
+    # 07-24
+    # 07.2024
+    # --------------------------------------------------------
+
+    if not match:
+        numeric_match = re.search(
+            r"\b(0?[1-9]|1[0-2])[\s./-](\d{2,4})\b",
+            normalized
+        )
+
+        if numeric_match:
+            expiry_month = int(numeric_match.group(1))
+            year_text = numeric_match.group(2)
+
+            if len(year_text) == 2:
+                expiry_year = 2000 + int(year_text)
+            else:
+                expiry_year = int(year_text)
+
+    # --------------------------------------------------------
+    # Could not understand expiry date
+    # --------------------------------------------------------
+
+    if not expiry_month or not expiry_year:
+        return {
+            "status": "UNKNOWN",
+            "message": "Expiry date format could not be understood.",
+        }
+
+    # --------------------------------------------------------
+    # Determine last day of expiry month
+    # --------------------------------------------------------
+
+    if expiry_month == 12:
+        next_month = date(expiry_year + 1, 1, 1)
+    else:
+        next_month = date(expiry_year, expiry_month + 1, 1)
+
+    expiry_end_date = next_month.fromordinal(
+        next_month.toordinal() - 1
+    )
+
+    today = date.today()
+
+    # --------------------------------------------------------
+    # Expired
+    # --------------------------------------------------------
+
+    if expiry_end_date < today:
+        return {
+            "status": "EXPIRED",
+            "message": (
+                f"Medicine expiry date has passed "
+                f"({expiry_end_date.strftime('%B %Y')})."
+            ),
+        }
+
+    # --------------------------------------------------------
+    # Calculate days remaining
+    # --------------------------------------------------------
+
+    days_remaining = (expiry_end_date - today).days
+
+    # --------------------------------------------------------
+    # Expiring within 90 days
+    # --------------------------------------------------------
+
+    if days_remaining <= 90:
+        return {
+            "status": "EXPIRING_SOON",
+            "message": (
+                f"Medicine expires soon "
+                f"({expiry_end_date.strftime('%B %Y')})."
+            ),
+        }
+
+    # --------------------------------------------------------
+    # Valid
+    # --------------------------------------------------------
+
+    return {
+        "status": "VALID",
+        "message": (
+            f"Medicine expiry date is "
+            f"{expiry_end_date.strftime('%B %Y')}."
+        ),
+    }
+
+
+# ============================================================
 # MEDICINE ANALYSIS
 # ============================================================
 
@@ -107,11 +322,6 @@ async def analyze_medicine(
     file: UploadFile = File(...),
     language: str = Form("english"),
 ):
-
-    print()
-    print("=" * 60)
-    print("NEXTGOLI MEDICINE ANALYSIS STARTED")
-    print("=" * 60)
 
     # --------------------------------------------------------
     # 1. Validate uploaded file
@@ -129,9 +339,6 @@ async def analyze_medicine(
             "message": "Please upload a valid medicine image.",
         }
 
-    print(f"File: {file.filename}")
-    print(f"Content type: {file.content_type}")
-
     # --------------------------------------------------------
     # 2. Read image
     # --------------------------------------------------------
@@ -144,8 +351,6 @@ async def analyze_medicine(
             "message": "The uploaded image is empty.",
         }
 
-    print(f"Image size: {len(image_bytes)} bytes")
-
     # --------------------------------------------------------
     # 3. Language
     # --------------------------------------------------------
@@ -154,8 +359,6 @@ async def analyze_medicine(
         response_language = "Hindi"
     else:
         response_language = "English"
-
-    print(f"Response language: {response_language}")
 
     # --------------------------------------------------------
     # 4. Gemini prompt
@@ -170,18 +373,10 @@ or medicine box shown in the image.
 The user may be elderly or from a rural area, so explanations
 must be simple and easy to understand.
 
+The selected response language is {response_language}.
+
 Extract only information that is visible in the image or can
 be identified with high confidence.
-
-Identify:
-
-1. Medicine or brand name
-2. Active salt / active ingredient
-3. Strength
-4. Expiry date
-5. General purpose / use
-6. How to take it
-7. Important precautions
 
 IMPORTANT SAFETY RULES:
 
@@ -194,36 +389,36 @@ IMPORTANT SAFETY RULES:
 - Do NOT diagnose any disease.
 - Do NOT tell the user to change their prescribed dosage.
 - If dosage instructions are not visible, say:
-
   "Follow your doctor's prescription, pharmacist's advice,
   or the instructions on the medicine package."
-
 - Do not assume that the medicine is safe for this particular user.
 - The purpose/use should be a general explanation, not a diagnosis.
 - If image quality is poor or the medicine cannot be identified
   confidently, clearly say so.
 
-LANGUAGE:
+LANGUAGE RULES:
 
-The user selected {response_language}.
+- Write purpose, how_to_take, and precautions in {response_language}.
+- Medicine name, active ingredient, strength and expiry date
+  can remain in their original form when appropriate.
+- Keep explanations simple for elderly and rural users.
 
-Write the explanatory information in {response_language}.
+EXPIRY RULE:
 
-Medicine name, active ingredient, strength and expiry date
-can remain in their original form when appropriate.
+- Read the expiry date exactly as printed on the package.
+- Do NOT decide whether the medicine is expired.
+- Python will calculate the expiry status separately.
+- If the expiry date cannot be read, return "Not visible".
 
-Return the response using exactly these sections:
+HOW TO TAKE:
 
-Medicine:
-Active Ingredient:
-Strength:
-Expiry Date:
-Purpose:
-How to Take:
-Precautions:
+- Never invent dosage or frequency.
+- If dosage information is not clearly visible, tell the user
+  to follow their doctor, pharmacist, or package instructions.
 
-Do not add unnecessary information outside these sections.
+Return only the requested structured fields.
 """
+
 
     # --------------------------------------------------------
     # 5. Prepare image
@@ -233,9 +428,6 @@ Do not add unnecessary information outside these sections.
         data=image_bytes,
         mime_type=file.content_type,
     )
-
-    print("Image prepared for Gemini.")
-    print()
 
     # --------------------------------------------------------
     # 6. Try Gemini models
@@ -247,6 +439,7 @@ Do not add unnecessary information outside these sections.
 
         try:
 
+            print()
             print("=" * 60)
             print(f"Trying Gemini model: {model_name}")
             print("=" * 60)
@@ -258,44 +451,59 @@ Do not add unnecessary information outside these sections.
                     image_part,
                 ],
                 config=types.GenerateContentConfig(
-                    automatic_function_calling=types.AutomaticFunctionCallingConfig(
-                        disable=True
-                    ),
+                    response_mime_type="application/json",
+                    response_schema=MedicineAnalysis,
                 ),
             )
 
             # ------------------------------------------------
-            # Successful response
+            # Validate structured response
             # ------------------------------------------------
 
-            gemini_text = response.text
-
-            if not gemini_text:
-
-                print(f"Gemini returned empty response: {model_name}")
-
+            if not response.text:
                 return {
                     "status": "error",
                     "message": "Gemini returned an empty response.",
                     "model": model_name,
                 }
 
-            print()
-            print("=" * 60)
-            print(f"Gemini SUCCESS: {model_name}")
-            print("=" * 60)
+            medicine_data = MedicineAnalysis.model_validate_json(
+                response.text
+            )
+
+            # ------------------------------------------------
+            # Python expiry validation
+            # ------------------------------------------------
+
+            expiry_result = calculate_expiry_status(
+                medicine_data.expiry_date
+            )
 
             print()
-            print("Gemini response:")
-            print(gemini_text)
-            print()
+            print("=" * 60)
+            print(f"Gemini success: {model_name}")
+            print("=" * 60)
+
+            print("Medicine:", medicine_data.medicine)
+            print("Ingredient:", medicine_data.active_ingredient)
+            print("Strength:", medicine_data.strength)
+            print("Expiry:", medicine_data.expiry_date)
+            print("Expiry Status:", expiry_result["status"])
+            print("=" * 60)
+
+            # ------------------------------------------------
+            # Final API response
+            # ------------------------------------------------
 
             return {
                 "status": "success",
                 "filename": file.filename,
                 "language": language,
                 "model": model_name,
-                "gemini_response": gemini_text,
+
+                "medicine": medicine_data.model_dump(),
+
+                "expiry_validation": expiry_result,
             }
 
         except Exception as error:
@@ -306,42 +514,21 @@ Do not add unnecessary information outside these sections.
             print("=" * 60)
             print(f"GEMINI ERROR - {model_name}")
             print("=" * 60)
-
             print(last_error)
-
             print("=" * 60)
 
             # ------------------------------------------------
-            # 503 / high demand
-            # ------------------------------------------------
-
-            if "503" in last_error or "UNAVAILABLE" in last_error:
-
-                print(
-                    f"Model {model_name} is unavailable."
-                )
-
-                print(
-                    "Trying the next Gemini model..."
-                )
-
-                continue
-
-            # ------------------------------------------------
-            # Timeout
+            # Try next model for temporary availability errors
             # ------------------------------------------------
 
             if (
-                "timeout" in last_error.lower()
-                or "timed out" in last_error.lower()
+                "503" in last_error
+                or "UNAVAILABLE" in last_error
+                or "high demand" in last_error.lower()
             ):
-
                 print(
-                    f"Model {model_name} timed out."
-                )
-
-                print(
-                    "Trying the next Gemini model..."
+                    f"Model {model_name} unavailable. "
+                    "Trying next Gemini model..."
                 )
 
                 continue
@@ -349,10 +536,6 @@ Do not add unnecessary information outside these sections.
             # ------------------------------------------------
             # Other errors
             # ------------------------------------------------
-
-            print(
-                "This is not a temporary model availability error."
-            )
 
             return {
                 "status": "error",
@@ -364,11 +547,6 @@ Do not add unnecessary information outside these sections.
     # --------------------------------------------------------
     # 7. All models failed
     # --------------------------------------------------------
-
-    print()
-    print("=" * 60)
-    print("ALL GEMINI MODELS FAILED")
-    print("=" * 60)
 
     return {
         "status": "error",

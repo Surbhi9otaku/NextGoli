@@ -95,7 +95,28 @@ export default function Home() {
   const [selectedLanguage, setSelectedLanguage] = useState<Language>("english");
 
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [result, setResult] = useState<string | null>(null);
+  type MedicineResult = {
+    medicine: string;
+    active_ingredient: string;
+    strength: string;
+    expiry_date: string;
+    purpose: string;
+    how_to_take: string;
+    precautions: string;
+  };
+
+  type ExpiryValidation = {
+    status: string;
+    message: string;
+    expiry_date?: string;
+  };
+
+  const [result, setResult] = useState<{
+    medicine: MedicineResult;
+    expiry_validation: ExpiryValidation;
+  } | null>(null);
+
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const t = translations[selectedLanguage];
 
@@ -120,6 +141,7 @@ export default function Home() {
 
     setIsAnalyzing(true);
     setResult(null);
+    setErrorMessage(null);
 
     try {
       const formData = new FormData();
@@ -143,11 +165,14 @@ export default function Home() {
       }
 
       // Display Gemini's actual response
-      setResult(data.gemini_response);
+      setResult({
+        medicine: data.medicine,
+        expiry_validation: data.expiry_validation,
+      });
     } catch (error) {
       console.error("Analysis error:", error);
 
-      setResult(
+      setErrorMessage(
         selectedLanguage === "english"
           ? "Unable to analyze medicine image. Please try again."
           : "दवा की तस्वीर का विश्लेषण नहीं हो सका। कृपया फिर से प्रयास करें।",
@@ -161,6 +186,7 @@ export default function Home() {
     setSelectedImage(null);
     setSelectedFile(null);
     setResult(null);
+    setErrorMessage(null);
 
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
@@ -337,10 +363,167 @@ export default function Home() {
               {isAnalyzing ? t.analyzing : t.analyze}
             </button>
 
-            {/* Backend Result */}
+            {/* ======== Error Message ======== */}
+            {errorMessage && (
+              <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-5 text-center text-red-700">
+                <p className="font-semibold">{errorMessage}</p>
+              </div>
+            )}
+
+            {/* ================= MEDICINE RESULT ================= */}
             {result && (
-              <div className="mt-5 rounded-2xl bg-emerald-50 p-5 text-center text-emerald-800">
-                <p className="font-semibold">{result}</p>
+              <div className="mt-8 space-y-4">
+                {/* Medicine Header */}
+                <div className="rounded-3xl border bg-white p-6 shadow-sm">
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-100 text-3xl">
+                      💊
+                    </div>
+
+                    <div>
+                      <p className="text-sm font-medium text-slate-500">
+                        {selectedLanguage === "english" ? "Medicine" : "दवा"}
+                      </p>
+
+                      <h3 className="text-2xl font-bold text-slate-900">
+                        {result.medicine.medicine}
+                      </h3>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Medicine Details */}
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {/* Active Ingredient */}
+                  <div className="rounded-2xl border bg-white p-5 shadow-sm">
+                    <p className="text-sm font-medium text-slate-500">
+                      {selectedLanguage === "english"
+                        ? "Active Ingredient"
+                        : "सक्रिय घटक"}
+                    </p>
+
+                    <p className="mt-2 text-lg font-semibold text-slate-900">
+                      {result.medicine.active_ingredient}
+                    </p>
+                  </div>
+
+                  {/* Strength */}
+                  <div className="rounded-2xl border bg-white p-5 shadow-sm">
+                    <p className="text-sm font-medium text-slate-500">
+                      {selectedLanguage === "english" ? "Strength" : "शक्ति"}
+                    </p>
+
+                    <p className="mt-2 text-lg font-semibold text-slate-900">
+                      {result.medicine.strength}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Expiry */}
+                <div className="rounded-2xl border bg-white p-5 shadow-sm">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-slate-500">
+                        {selectedLanguage === "english"
+                          ? "Expiry Date"
+                          : "समाप्ति तिथि"}
+                      </p>
+
+                      <p className="mt-2 text-lg font-bold text-slate-900">
+                        {result.medicine.expiry_date}
+                      </p>
+                    </div>
+
+                    <div
+                      className={`rounded-full px-4 py-2 text-sm font-bold ${
+                        result.expiry_validation.status === "VALID"
+                          ? "bg-emerald-100 text-emerald-700"
+                          : result.expiry_validation.status === "EXPIRING_SOON"
+                            ? "bg-yellow-100 text-yellow-700"
+                            : result.expiry_validation.status === "EXPIRED"
+                              ? "bg-red-100 text-red-700"
+                              : "bg-slate-100 text-slate-700"
+                      }`}
+                    >
+                      {result.expiry_validation.status === "VALID"
+                        ? selectedLanguage === "english"
+                          ? "✓ VALID"
+                          : "✓ मान्य"
+                        : result.expiry_validation.status === "EXPIRING_SOON"
+                          ? selectedLanguage === "english"
+                            ? "⚠ EXPIRING SOON"
+                            : "⚠ जल्द समाप्त"
+                          : result.expiry_validation.status === "EXPIRED"
+                            ? selectedLanguage === "english"
+                              ? "✕ EXPIRED"
+                              : "✕ समाप्त हो चुकी है"
+                            : selectedLanguage === "english"
+                              ? "UNKNOWN"
+                              : "अज्ञात"}
+                    </div>
+                  </div>
+
+                  <p className="mt-3 text-sm text-slate-600">
+                    {result.expiry_validation.message}
+                  </p>
+                </div>
+
+                {/* Purpose */}
+                <div className="rounded-2xl border bg-white p-5 shadow-sm">
+                  <div className="flex items-start gap-3">
+                    <span className="text-2xl">💡</span>
+
+                    <div>
+                      <h4 className="font-bold text-slate-900">
+                        {selectedLanguage === "english"
+                          ? "What is it used for?"
+                          : "इसका उपयोग किस लिए होता है?"}
+                      </h4>
+
+                      <p className="mt-2 leading-7 text-slate-600">
+                        {result.medicine.purpose}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* How to Take */}
+                <div className="rounded-2xl border bg-white p-5 shadow-sm">
+                  <div className="flex items-start gap-3">
+                    <span className="text-2xl">💊</span>
+
+                    <div>
+                      <h4 className="font-bold text-slate-900">
+                        {selectedLanguage === "english"
+                          ? "How to take"
+                          : "कैसे लें"}
+                      </h4>
+
+                      <p className="mt-2 leading-7 text-slate-600">
+                        {result.medicine.how_to_take}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Precautions */}
+                <div className="rounded-2xl border bg-white p-5 shadow-sm">
+                  <div className="flex items-start gap-3">
+                    <span className="text-2xl">⚠️</span>
+
+                    <div>
+                      <h4 className="font-bold text-slate-900">
+                        {selectedLanguage === "english"
+                          ? "Precautions"
+                          : "सावधानियां"}
+                      </h4>
+
+                      <p className="mt-2 leading-7 text-slate-600">
+                        {result.medicine.precautions}
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
           </div>
