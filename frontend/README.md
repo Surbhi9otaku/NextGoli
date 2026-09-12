@@ -1,36 +1,102 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 💊 NextGoli
 
-## Getting Started
+### AI-Powered Voice-First Medicine Reader
 
-First, run the development server:
+> **Understand your medicine. Simply.**
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+NextGoli is an AI-powered medicine reader designed to help elderly, rural, and low-literacy users understand medicine information without struggling to read tiny labels on medicine strips and packages.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Users can simply take a photo of a medicine package. NextGoli uses Gemini's multimodal AI to identify and explain the medicine in simple English or Hindi, validates the expiry date using Python, and uses Gemini Text-to-Speech to read the information aloud.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 🎯 Problem
 
-## Learn More
+Many people, especially elderly and rural users, face difficulties with:
 
-To learn more about Next.js, take a look at the following resources:
+- Reading tiny medicine labels
+- Understanding medicine names and active ingredients
+- Understanding what a medicine is commonly used for
+- Checking medicine expiry dates
+- Understanding precautions
+- Accessing medicine information in their preferred language
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+NextGoli aims to make this information easier to access through **image understanding, simple language, and voice interaction**.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+# 💡 Solution
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+The user takes a photo of a medicine strip or package.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+NextGoli then:
+
+1. 📷 Accepts the medicine image
+2. 🤖 Uses Gemini multimodal AI to understand the medicine package
+3. 💊 Extracts medicine name, active ingredient, strength and expiry date
+4. 🧠 Generates simple explanations
+5. 🐍 Uses Python to deterministically validate the expiry date
+6. 🇬🇧 Supports English
+7. 🇮🇳 Supports Hindi
+8. 🔊 Uses Gemini Text-to-Speech to read the information aloud
+
+---
+
+# ✨ Key Features
+
+### 📷 Medicine Image Scanning
+
+Upload or capture a photo of a medicine strip, blister pack, or medicine box.
+
+### 🤖 AI Medicine Recognition
+
+Gemini multimodal AI analyzes the medicine image and extracts relevant information.
+
+### 💊 Medicine Information
+
+Displays:
+
+- Medicine / Brand Name
+- Active Ingredient
+- Strength
+- Expiry Date
+- Common Purpose / Use
+- How to Take
+- Precautions
+
+### ⚠️ Expiry Validation
+
+The expiry date is read by Gemini, but the actual expiry decision is performed using deterministic Python logic.
+
+Possible statuses:
+
+- ✅ VALID
+- ⚠️ EXPIRING SOON
+- ❌ EXPIRED
+- ❓ UNKNOWN
+
+### 🌐 Bilingual Experience
+
+Users can switch between:
+
+- 🇬🇧 English
+- 🇮🇳 Hindi
+
+### 🔊 Voice Accessibility
+
+Users can listen to medicine information instead of reading it.
+
+Gemini Text-to-Speech generates the voice output.
+
+---
+
+# 🤖 Gemini API Usage
+
+Gemini is a core part of NextGoli.
+
+## 1. Gemini Multimodal Vision
+
+### Model
+
+```text
+gemini-3.5-flash-lite
