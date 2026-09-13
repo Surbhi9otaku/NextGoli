@@ -4,6 +4,9 @@ import { useRef, useState, type ChangeEvent } from "react";
 
 type Language = "english" | "hindi";
 
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
 const translations = {
   english: {
     tagline: "Understand your medicine. Simply.",
@@ -152,7 +155,7 @@ export default function Home() {
 
       console.log("Sending medicine image to backend...");
 
-      const response = await fetch("http://localhost:8000/analyze", {
+      const response = await fetch(`${API_URL}/analyze`, {
         method: "POST",
         body: formData,
       });
@@ -259,7 +262,7 @@ Precautions: ${medicine.precautions}`;
 
       console.log("Sending medicine information to Gemini TTS...");
 
-      const response = await fetch("http://localhost:8000/speak", {
+      const response = await fetch(`${API_URL}/speak`, {
         method: "POST",
         body: formData,
       });
