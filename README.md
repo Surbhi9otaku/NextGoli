@@ -124,7 +124,7 @@ Used to convert the final medicine information into speech.
 Gemini + Python
 
 Gemini extracts the expiry date, while Python performs the actual expiry calculation.
-
+```text
 Gemini
   ↓
 Extract expiry date
@@ -132,6 +132,7 @@ Extract expiry date
 Python
   ↓
 Calculate expiry status
+```
 
 ---
 
