@@ -228,7 +228,7 @@ NextGoli/
 ├── README.md
 ├── .gitignore
 └── LICENSE
-```text
+```
 
 ---
 
