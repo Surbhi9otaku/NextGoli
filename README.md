@@ -94,9 +94,290 @@ Gemini Text-to-Speech generates the voice output.
 
 Gemini is a core part of NextGoli.
 
-## 1. Gemini Multimodal Vision
+## 1. Medicine Image Analysis
 
 ### Model
 
 ```text
 gemini-3.5-flash-lite
+```
+
+Used to analyze the uploaded medicine image and extract:
+
+- Medicine / Brand Name
+- Active Ingredient
+- Strength
+- Expiry Date
+- Purpose
+- How to Take
+- Precautions
+
+## 2. Text-to-Speech
+
+### Model
+
+```text
+gemini-3.1-flash-tts-preview
+```
+Used to convert the final medicine information into speech.
+
+Gemini + Python
+
+Gemini extracts the expiry date, while Python performs the actual expiry calculation.
+
+Gemini
+  ↓
+Extract expiry date
+
+Python
+  ↓
+Calculate expiry status
+
+---
+
+# 🏗️ Architecture
+
+┌───────────────────────┐
+│    Next.js Frontend   │
+│                       │
+│ Image Upload          │
+│ Language Selection    │
+│ Medicine Results      │
+│ Voice Button          │
+└───────────┬───────────┘
+            │
+            ▼
+┌───────────────────────┐
+│    FastAPI Backend    │
+│                       │
+│ /analyze              │
+│ /speak                │
+│ Expiry Validation     │
+└───────────┬───────────┘
+            │
+            ▼
+┌──────────────────────────┐
+│  Gemini 3.5 Flash-Lite   │
+│  Multimodal Analysis     │
+└───────────┬──────────────┘
+            │
+            ▼
+      Structured Data
+            │
+            ▼
+┌───────────────────────┐
+│   Python Validation   │
+│   Expiry Calculation  │
+└───────────┬───────────┘
+            │
+            ▼
+      Next.js Result
+            │
+            ▼
+┌─────────────────────────────┐
+│ Gemini 3.1 Flash TTS        │
+│ Text → Speech               │
+└──────────────┬──────────────┘
+               │
+               ▼
+          🔊 Audio
+
+---
+
+# 🛠️ Tech Stack
+
+| Layer               | Technology                 |
+| ------------------- | -------------------------- |
+| Frontend            | Next.js, React, TypeScript |
+| Styling             | Tailwind CSS               |
+| Backend             | Python, FastAPI            |
+| Validation          | Pydantic, Python           |
+| AI                  | Google Gemini API          |
+| Text-to-Speech      | Gemini TTS                 |
+| API Documentation   | Swagger                    |
+| Version Control     | Git, GitHub                |
+| Frontend Deployment | Vercel                     |
+| Backend Deployment  | Render                     |
+
+---
+
+# 📁 Project Structure
+
+NextGoli/
+│
+├── backend/
+│   ├── main.py
+│   ├── requirements.txt
+│   ├── .env
+│   └── .env.example
+│
+├── frontend/
+│   ├── app/
+│   │   ├── globals.css
+│   │   ├── layout.tsx
+│   │   └── page.tsx
+│   ├── public/
+│   ├── package.json
+│   ├── package-lock.json
+│   ├── next.config.ts
+│   └── tsconfig.json
+│
+├── README.md
+├── .gitignore
+└── LICENSE
+
+---
+
+#  ⚙️ Setup & Installation
+
+Prerequisites
+
+Make sure you have:
+
+- Node.js
+- npm
+- Python 3.10+
+- Git
+- Gemini API Key
+
+1. Clone Repository
+
+```text
+git clone https://github.com/SurBhi9Otaku/NextGoli.git
+cd NextGoli
+```
+
+2. Backend Setup
+
+```text
+cd backend
+```
+Create a virtual environment.
+
+Windows:
+```text
+python -m venv venv
+venv\Scripts\activate
+```
+macOS / Linux:
+```text
+python3 -m venv venv
+source venv/bin/activate
+```
+
+Install dependencies:
+```text
+pip install -r requirements.txt
+```
+
+3. Backend Environment Variables
+
+Create:
+```text
+backend/.env
+```
+Add:
+```text
+GEMINI_API_KEY=your_gemini_api_key
+```
+
+4. Start Backend
+   
+```text
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+
+Backend:
+```text
+http://localhost:8000
+```
+
+Swagger:
+```text
+http://localhost:8000/docs
+```
+
+5. Frontend Setup
+
+Open a new terminal:
+```text
+cd frontend
+```
+
+Install dependencies:
+```text
+npm install
+```
+
+Create:
+```text
+frontend/.env.local
+```
+Add:
+```text
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
+
+Start the frontend:
+```text
+npm run dev
+```
+
+Frontend:
+```text
+http://localhost:3000
+```
+
+---
+
+# 🔌 API Endpoints
+
+| Method | Endpoint   | Purpose                |
+| ------ | ---------- | ---------------------- |
+| GET    | `/`        | Backend status         |
+| GET    | `/health`  | Health check           |
+| POST   | `/analyze` | Analyze medicine image |
+| POST   | `/speak`   | Generate speech        |
+
+---
+
+# 🚀 Deployment
+
+Frontend
+
+Deployed using Vercel.
+
+Backend
+
+Deployed using Render.
+
+Production Architecture
+Vercel
+  │
+  ▼
+Next.js Frontend
+  │
+  ▼
+Render
+  │
+  ▼
+FastAPI Backend
+  │
+  ▼
+Google Gemini API
+
+---
+
+# 🔗 Project Links
+
+- **GitHub:** https://github.com/SurBhi9Otaku/NextGoli
+- **Live Demo:** https://frontend-eight-self-43.vercel.app/
+- **API Documentation:** https://nextgoli-backend.onrender.com/docs
+
+---
+
+# ❤️ NextGoli
+
+> **See it. Understand it. Hear it.**
+
+
