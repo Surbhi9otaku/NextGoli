@@ -102,6 +102,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
+        "https://frontend-eight-self-43.vercel.app",
+        "https://frontend-git-main-surbhi9otakus-projects.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
