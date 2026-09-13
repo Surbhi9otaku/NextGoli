@@ -137,6 +137,7 @@ Calculate expiry status
 
 # 🏗️ Architecture
 
+```text
 ┌───────────────────────┐
 │    Next.js Frontend   │
 │                       │
@@ -181,6 +182,7 @@ Calculate expiry status
                │
                ▼
           🔊 Audio
+```
 
 ---
 
@@ -203,6 +205,7 @@ Calculate expiry status
 
 # 📁 Project Structure
 
+```text
 NextGoli/
 │
 ├── backend/
@@ -225,6 +228,7 @@ NextGoli/
 ├── README.md
 ├── .gitignore
 └── LICENSE
+```text
 
 ---
 
@@ -352,6 +356,7 @@ Backend
 Deployed using Render.
 
 Production Architecture
+```text
 Vercel
   │
   ▼
@@ -365,6 +370,7 @@ FastAPI Backend
   │
   ▼
 Google Gemini API
+```
 
 ---
 
